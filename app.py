@@ -3,14 +3,14 @@ from flask import Flask
 from flask_cors import CORS
 
 from flask_app.dev import dev_routes
-from flask_app.endpoints import main_routes
+from flask_app.files import file_routes
 from flask_app.user import user_management
 
 app = Flask(__name__)
 CORS(app)
 
 # Register the blueprints
-app.register_blueprint(main_routes)
+app.register_blueprint(file_routes)
 app.register_blueprint(user_management)
 app.register_blueprint(dev_routes)
 

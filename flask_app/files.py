@@ -3,10 +3,10 @@ from flask import Blueprint, request, make_response
 from config import tokenDecode
 from postgres.transactions import addDocument
 
-main_routes = Blueprint('main_routes', __name__, url_prefix='/data')
+file_routes = Blueprint('file_routes', __name__, url_prefix='/data')
 
 
-@main_routes.route('/upload', methods=['POST'])
+@file_routes.route('/upload', methods=['POST'])
 def upload_files():
 	try:
 		files = request.files.getlist('file')
@@ -18,6 +18,8 @@ def upload_files():
 		token = tokenDecode(authorization)
 
 		document_ids: list = []
+
+		print(request.form)
 
 		for file in files:
 			content_type = file.content_type
