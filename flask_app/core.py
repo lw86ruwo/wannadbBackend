@@ -28,22 +28,21 @@ Example:
 Author: Leon Wenderoth
 """
 import logging.config
+from flask import Blueprint, make_response, current_app
+from flask_profiler import flask_profiler
 
-from flask import Blueprint, request, make_response
-
-from config import tokenDecode
-from wanadb_web_api.api import WannaDBWebAPI
 from wannadb.data.data import Document, Attribute
-from wannadb.resources import ResourceManager, MANAGER
+from wannadb.statistics import Statistics
+
 
 core_routes = Blueprint('core_routes', __name__, url_prefix='/core')
 
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 @core_routes.route('/create_document_base', methods=['POST'])
 def create_document_base():
+	from app import web_Thread_Manager
 	# form = request.form
 	# authorization = request.headers.get("authorization")
 	# _organisation_id = int(form.get("organisationId"))
@@ -52,12 +51,17 @@ def create_document_base():
 	# _base_name = int(form.get("baseName"))
 	document = Document("a", "b")
 	attribute = Attribute("a")
-	if MANAGER is None:
-		with ResourceManager():
-			a = WannaDBWebAPI()
-			a.create_document_base([document], [attribute], "None")
-	else:
-		a = WannaDBWebAPI()
-		a.create_document_base([document], [attribute], "None")
+	statistics = Statistics(False)
+
+	thread = web_Thread_Manager.new_thread(1)
+	thread.create_document_base([document], [attribute], statistics)
 
 	return make_response("Document base created", 200)
+
+
+@core_routes.route('/getStatus', methods=['GET'])
+def getStatus():
+	with current_app.app_context():
+		print(current_app.web_Thread_Manager.access_thread(1).status.name)
+	from app import web_Thread_Manager
+	return "web_Thread_Manager.access_thread(1).status.name"

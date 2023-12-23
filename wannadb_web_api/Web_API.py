@@ -17,26 +17,20 @@ from wannadb.preprocessing.label_paraphrasing import OntoNotesLabelParaphraser, 
 from wannadb.preprocessing.normalization import CopyNormalizer
 from wannadb.preprocessing.other_processing import ContextSentenceCacher
 from wannadb.resources import ResourceManager
+from wannadb.statistics import Statistics
 from wannadb.status import StatusCallback
 from wannadb_parsql.cache_db import SQLiteCacheDB
 
 logger = logging.getLogger(__name__)
 
 
-class Status(Enum):
-	"""Gives the status of the application."""
-	IDLE = 1
-	CREATING = 2
-	LOADING = 3
-	CREATED = 4
-	ERROR = 99
 
 
-class WannaDBWebAPI:
+
+class Web_API:
 	def __init__(self,):
 		super()
 		self.cache_db_to_ui = None
-		self.status = Status.IDLE
 		self.error = None
 		self.feedback = None
 		self.cache_db = None
@@ -54,9 +48,8 @@ class WannaDBWebAPI:
 		logger.error(str(exception))
 		self.error = (str(exception))
 
-	def create_document_base(self, documents: list[Document], attributes: list[Attribute], statistics):
+	def create_document_base(self, documents: list[Document], attributes: list[Attribute], statistics:Statistics):
 		logger.debug("Called slot 'create_document_base'.")
-		self.status = Status.CREATING
 		try:
 
 			self._reset_cache_db()
@@ -70,7 +63,6 @@ class WannaDBWebAPI:
 				return
 
 			# load default preprocessing phase
-			self.status = Status.LOADING
 
 			preprocessing_phase = Pipeline([
 					StanzaNERExtractor(),
@@ -92,8 +84,6 @@ class WannaDBWebAPI:
 			status_callback = StatusCallback(status_callback_fn)
 
 			preprocessing_phase(document_base, EmptyInteractionCallback(), status_callback, statistics)
-
-			self.status = Status.CREATED
 		except FileNotFoundError:
 			logger.error("Directory does not exist!")
 			self.error = "Directory does not exist!"

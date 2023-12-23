@@ -10,3 +10,5 @@ tornado~=6.4
 setuptools~=69.0.2
 werkzeug~=3.0.1
 pylint~=3.0.3
+flask_profiler~=1.8.1
+flask-debugtoolbar~=0.14.1

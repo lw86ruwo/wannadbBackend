@@ -22,8 +22,7 @@ RUN pip install --use-pep517 -r backend-requirements.txt
 RUN pip install --use-pep517 pytest
 #RUN pytest
 
-#copy the rest
-COPY . .
+
 
 FROM build as dev 
 
@@ -32,6 +31,9 @@ CMD ["flask", "--app", "app", "--debug", "run","--host","0.0.0.0", "--port", "80
 
 
 FROM build as prod
+
+#copy the rest
+COPY . .
 
 RUN chmod +x entrypoint.sh
 
