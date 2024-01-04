@@ -1,8 +1,8 @@
 import bcrypt
 from psycopg2 import sql, IntegrityError
-from config import Token, Authorisation, tokenDecode
-from postgres.queries import checkPassword
-from postgres.util import execute_transaction
+from wannadb_web.util import Token, Authorisation, tokenDecode
+from wannadb_web.postgres.queries import checkPassword
+from wannadb_web.postgres.util import execute_transaction
 
 
 # WARNING: This is only for development purposes!

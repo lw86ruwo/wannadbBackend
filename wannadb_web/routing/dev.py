@@ -1,7 +1,7 @@
 from flask import Blueprint, make_response
 
-from postgres.queries import _getDocument
-from postgres.transactions import createUserTable, createDocumentsTable, createOrganisationTable, createMembershipTable, \
+from wannadb_web.postgres.queries import _getDocument
+from wannadb_web.postgres.transactions import createUserTable, createDocumentsTable, createOrganisationTable, createMembershipTable, \
 	dropTables, dropSchema, createSchema
 
 dev_routes = Blueprint('dev_routes', __name__, url_prefix='/dev')

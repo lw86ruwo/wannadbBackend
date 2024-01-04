@@ -1,7 +1,7 @@
 from flask import Blueprint, request, make_response
 
-from config import tokenDecode
-from postgres.transactions import addDocument
+from wannadb_web.util import tokenDecode
+from wannadb_web.postgres.transactions import addDocument
 
 main_routes = Blueprint('main_routes', __name__, url_prefix='/data')
 

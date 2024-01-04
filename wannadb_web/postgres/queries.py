@@ -1,10 +1,9 @@
-from typing import Union, Tuple
+from typing import Union
 
 import bcrypt
 from psycopg2 import sql
 
-from config import tokenDecode, Token
-from postgres.util import execute_query
+from wannadb_web.postgres.util import execute_query
 
 
 def getUserID(user: str):

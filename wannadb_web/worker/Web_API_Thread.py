@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from wannadb.data.data import Attribute, Document
 from wannadb.statistics import Statistics
-from wannadb_web_api.Web_API import Web_API
+from wannadb_web.worker.Web_API import Web_API
 from wannadb.resources import ResourceManager
 
 logger = logging.getLogger(__name__)

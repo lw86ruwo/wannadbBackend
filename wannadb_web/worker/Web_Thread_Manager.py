@@ -2,7 +2,7 @@ import threading
 import logging.config
 import time
 from datetime import datetime
-from wannadb_web_api.Web_API_Thread import Web_API_Thread
+from wannadb_web.worker.Web_API_Thread import Web_API_Thread
 
 logger = logging.getLogger(__name__)
 
@@ -10,12 +10,15 @@ logger = logging.getLogger(__name__)
 class Web_Thread_Manager(threading.Thread):
 	def __init__(self, idle_time=60):
 		super().__init__()
-		logger.info("Web_Thread_Manager started")
+		logger.info("Web_Thread_Manager initialized")
 		self.idle_time = idle_time
 		self.threads: dict[int, Web_API_Thread] = {}
 		self.thread_limit = 2
+		global web_Thread_Manager
+		web_Thread_Manager = self
 
 	def run(self):
+		logger.info("Web_Thread_Manager running")
 		while True:
 			time.sleep(self.idle_time)
 			for thread_id, thread in self.threads.items():
