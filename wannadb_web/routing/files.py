@@ -1,12 +1,13 @@
 from flask import Blueprint, request, make_response
 
+from wannadb_web.postgres.queries import getDocument
 from wannadb_web.util import tokenDecode
 from wannadb_web.postgres.transactions import addDocument
 
 main_routes = Blueprint('main_routes', __name__, url_prefix='/data')
 
 
-@main_routes.route('/upload', methods=['POST'])
+@main_routes.route('/file', methods=['POST'])
 def upload_files():
 	files = request.files.getlist('file')
 	form = request.form
@@ -33,3 +34,23 @@ def upload_files():
 	if any(isinstance(document_ids, str) for _ in document_ids):
 		return make_response(document_ids, 207)
 	return make_response(document_ids, 201)
+
+
+@main_routes.route('/file/<_id>', methods=['GET'])
+def get_file(_id):
+	print(request.json)
+	authorization = request.json.get("authorization")
+	document_id = int(_id)
+
+	token = tokenDecode(authorization)
+
+	document_ids: list = []
+
+	document = getDocument(document_id, token.id)
+
+	if document is None:
+		return make_response(document_ids, 404)
+	if isinstance(document, str):
+		return make_response(document, 200)
+	if isinstance(document, bytes):
+		return make_response(document, 206)

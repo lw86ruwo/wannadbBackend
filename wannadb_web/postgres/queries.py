@@ -72,15 +72,40 @@ def checkOrganisationAuthorisation(organisationName: str, userName: str) -> int:
 
 
 def _getDocument(documentId: int):
-	select_query = sql.SQL("SELECT content "
-						   "from documents "
-						   "where id = (%s)")
+	select_query = sql.SQL("""SELECT content,content_byte 
+								from documents 
+						   		where id = (%s)""")
 
 	result = execute_query(select_query, (documentId,))
 	try:
 		if result[0]:
-			content = result[0]
-			return str(content)
+			if result[0][0]:
+				content = result[0][0]
+				return str(content)
+			else:
+				content = result[0][1]
+				return bytes(content)
 
 	except Exception as e:
-		print("checkOrganisationAuthorisation failed because: \n", e)
+		print("_getDocument failed because: \n", e)
+
+
+def getDocument(documentId: int, _id: int):
+	select_query = sql.SQL("""SELECT content,content_byte 
+									from documents 
+							   		join membership m on documents.organisationid = m.organisationid
+							   		where id = (%s) and m.userid = (%s)
+							   		""")
+
+	result = execute_query(select_query, (documentId, _id,))
+	print(result)
+	try:
+		if result[0]:
+			if result[0][0]:
+				content = result[0][0]
+				return str(content)
+			else:
+				content = result[0][1]
+				return bytes(content)
+	except Exception as e:
+		print("getDocument failed because: \n", e)

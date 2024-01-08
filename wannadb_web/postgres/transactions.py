@@ -1,3 +1,5 @@
+from typing import Union
+
 import bcrypt
 from psycopg2 import sql, IntegrityError
 from wannadb_web.util import Token, Authorisation, tokenDecode
@@ -201,7 +203,6 @@ def addOrganisation(organisationName: str, sessionToken: str):
 	try:
 		token: Token = tokenDecode(sessionToken)
 		userid = token.id
-
 		insert_query = sql.SQL("with a as (INSERT INTO organisations (name) VALUES (%s) returning id) "
 							   "INSERT INTO membership (userid,organisationid) select (%s),id from a returning organisationid")
 		organisation_id = execute_transaction(insert_query, (organisationName, userid), commit=True)
@@ -307,10 +308,14 @@ def adjUserAuthorisation(organisationName: str, sessionToken: str, userToAdjust:
 		print("adjUserAuthorisation failed because: \n", e)
 
 
-def addDocument(name: str, content: str, organisationId: int, userid: int):
+def addDocument(name: str, content: Union[str, bytes], organisationId: int, userid: int):
 	try:
-		insert_data_query = sql.SQL("INSERT INTO documents (name,content,organisationid,userid) "
-									"VALUES (%s, %s,%s, %s) returning id;")
+		if isinstance(content, str):
+			insert_data_query = sql.SQL("INSERT INTO documents (name,content,organisationid,userid) "
+										"VALUES (%s, %s,%s, %s) returning id;")
+		else:
+			insert_data_query = sql.SQL("INSERT INTO documents (name,content_byte,organisationid,userid) "
+										"VALUES (%s, %s,%s, %s) returning id;")
 		data_to_insert = (name, content, organisationId, userid)
 		response = execute_transaction(insert_data_query, data_to_insert, commit=True)
 		return int(response[0][0])
