@@ -59,8 +59,9 @@ def createDocumentsTable(schema):
 		create_table_query = sql.SQL(f"""CREATE TABLE {schema}.documents
 (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1 ),
-    name text COLLATE pg_catalog."default" NOT NULL,
-    content text COLLATE pg_catalog."default" NOT NULL,
+    name text NOT NULL,
+    content text ,
+    content_byte   bytea,
     organisationid bigint NOT NULL,
     userid bigint NOT NULL,
     CONSTRAINT dokumentid PRIMARY KEY (id),
@@ -74,6 +75,8 @@ def createDocumentsTable(schema):
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID
+    CONSTRAINT check_only_one_filled
+        check (((content IS NOT NULL) AND (content_byte IS NULL)) OR ((content IS NOT NULL) AND (content_byte IS NULL)))
 )
 
 TABLESPACE pg_default;""")
