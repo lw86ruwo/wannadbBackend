@@ -6,6 +6,7 @@ from flask import Flask, make_response, render_template_string
 from flask_cors import CORS
 from flask_debugtoolbar import DebugToolbarExtension
 
+from wannadb_web.Redis.util import RedisConnection
 from wannadb_web.routing.core import core_routes
 from wannadb_web.routing.dev import dev_routes
 from wannadb_web.routing.user import user_management
@@ -17,10 +18,12 @@ app = Flask(__name__)
 
 
 def celery_init_app(_app: Flask) -> Celery:
+	_app.app_context()
+	RedisConnection()
 	class FlaskTask(Task):
+
 		def __call__(self, *args: object, **kwargs: object) -> object:
-			with _app.app_context():
-				return self.run(*args, **kwargs)
+			return self.run(*args, **kwargs)
 
 	celery_app = Celery(_app.name, task_cls=FlaskTask)
 	celery_app.config_from_object(_app.config)  # Use the app's entire configuration
@@ -43,6 +46,7 @@ app.config.from_mapping(
 # Register the Extensions
 CORS(app)
 toolbar = DebugToolbarExtension(app)
+
 celery = celery_init_app(app)
 
 # Register the blueprints

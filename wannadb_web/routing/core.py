@@ -34,7 +34,7 @@ from flask import Blueprint, make_response, current_app, jsonify, url_for
 
 from wannadb.data.data import Document, Attribute
 from wannadb.statistics import Statistics
-from wannadb_web.worker.Web_API import create_document_base
+from wannadb_web.worker.tasks import create_document_base, long_task
 
 core_routes = Blueprint('core_routes', __name__, url_prefix='/core')
 
@@ -49,11 +49,11 @@ def create_document():
 	#
 	# _token = tokenDecode(authorization)
 	# _base_name = int(form.get("baseName"))
-	document = Document("a", "b")
+	document_name = "test"
 	attribute = Attribute("a")
 	statistics = Statistics(False)
 
-	create_document_base.apply_async(args=([document], [attribute]))
+	task = create_document_base.apply_async(args=(document_name, [attribute], statistics))
 
 	return make_response("Document base created", 200)
 
@@ -63,9 +63,6 @@ def getStatus():
 	with current_app.app_context():
 		print(current_app.web_Thread_Manager.access_thread(1).status.name)
 		return current_app.web_Thread_Manager.access_thread(1).status.name
-
-
-from wannadb_web.worker.tasks import long_task
 
 
 @core_routes.route('/longtask', methods=['POST'])
