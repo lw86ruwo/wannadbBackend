@@ -14,12 +14,6 @@ from wannadb_web.routing.files import main_routes
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 app = Flask(__name__)
-CORS(app)
-app.config["DEBUG"] = True
-
-app.config['SECRET_KEY'] = 'secret!'
-toolbar = DebugToolbarExtension(app)
-app.config['DEBUG_TB_PROFILER_ENABLED'] = True
 
 
 def celery_init_app(_app: Flask) -> Celery:
@@ -29,20 +23,26 @@ def celery_init_app(_app: Flask) -> Celery:
 				return self.run(*args, **kwargs)
 
 	celery_app = Celery(_app.name, task_cls=FlaskTask)
-	celery_app.config_from_object(_app.config["CELERY"])
+	celery_app.config_from_object(_app.config)  # Use the app's entire configuration
 	celery_app.set_default()
 	_app.extensions["celery"] = celery_app
 	return celery_app
 
 
-app = Flask(__name__)
+# Combine Flask and Celery configs
 app.config.from_mapping(
-	CELERY=dict(
-		broker_url=os.environ.get("CELERY_BROKER_URL"),
-		task_ignore_result=True,
-
-	),
+	SECRET_KEY='secret!',
+	DEBUG=True,
+	DEBUG_TB_ENABLED=True,
+	DEBUG_TB_PROFILER_ENABLED=True,
+	broker_url=os.environ.get("CELERY_BROKER_URL"),
+	task_ignore_result=True,
+	PREFERRED_URL_SCHEME='https',
+	PROPAGATE_EXCEPTIONS=True
 )
+# Register the Extensions
+CORS(app)
+toolbar = DebugToolbarExtension(app)
 celery = celery_init_app(app)
 
 # Register the blueprints
@@ -50,8 +50,6 @@ app.register_blueprint(main_routes)
 app.register_blueprint(user_management)
 app.register_blueprint(dev_routes)
 app.register_blueprint(core_routes)
-
-app.app_context()
 
 
 @app.errorhandler(404)
@@ -68,14 +66,14 @@ def generic_error(error):
 @app.route('/DEBUG')
 def index():
 	html_code = """
-	<html lang="ts">
-		<body>
-			<form>
-				<p>hello</p>
-			</form>
-		</body>
-	</html>
-	"""
+    <html lang="ts">
+        <body>
+            <form>
+                <p>hello</p>
+            </form>
+        </body>
+    </html>
+    """
 	return render_template_string(html_code)
 
 
