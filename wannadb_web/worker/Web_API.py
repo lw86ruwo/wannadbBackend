@@ -1,10 +1,11 @@
 import csv
+import io
 import json
 import logging
 import os
 from typing import Optional
 
-from celery import Celery,Task
+from celery import Celery, Task
 
 from wannadb.configuration import Pipeline
 from wannadb.data.data import Attribute, Document, DocumentBase
@@ -20,8 +21,12 @@ from wannadb.preprocessing.normalization import CopyNormalizer
 from wannadb.preprocessing.other_processing import ContextSentenceCacher
 from wannadb.statistics import Statistics
 from wannadb.status import StatusCallback
+from wannadb_web.Redis import RedisCache
 from wannadb_web.SQLite import Cache_DB
 from wannadb_web.SQLite.Cache_DB import SQLiteCacheDBWrapper
+from wannadb_web.postgres.queries import getDocument
+from wannadb_web.postgres.transactions import addDocument
+from wannadb_web.worker.util import TaskStatus, Progress
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +37,13 @@ celery = Celery('tasks', broker=os.environ.get("CELERY_BROKER_URL"))
 @celery.task(bind=True)
 def create_document_base(self, _id: int, documents: [Document], attributes: [Attribute], statistics: [Statistics]):
 	logger.debug("Called function 'create_document_base'.")
-	sqLiteCacheDBWrapper: Optional[SQLiteCacheDBWrapper] = None
+	wrapper_cache_db: Optional[SQLiteCacheDBWrapper] = None
 	try:
-		sqLiteCacheDBWrapper = Cache_DB.Cache_Manager.user(_id)
-		sqLiteCacheDBWrapper.reset_cache_db()
+		wrapper_cache_db = Cache_DB.Cache_Manager.user(_id)
+		wrapper_cache_db.reset_cache_db()
 
 		document_base = DocumentBase(documents, attributes)
-		sqLiteCacheDBWrapper.sqLiteCacheDB.create_input_docs_table("input_document", document_base.documents)
+		wrapper_cache_db.sqLiteCacheDB.create_input_docs_table("input_document", document_base.documents)
 
 		if not document_base.validate_consistency():
 			logger.error("Document base is inconsistent!")
@@ -68,73 +73,77 @@ def create_document_base(self, _id: int, documents: [Document], attributes: [Att
 
 		preprocessing_phase(document_base, EmptyInteractionCallback(), status_callback, statistics)
 
-		#save_document_base_to_bson(document_base, _id)
+		# save_document_base_to_bson(document_base, _id)
 
 		return {'current': 100, 'total': 100, 'status': 'Task completed!'}
 	except Exception as e:
 		error = str(e)
 		return error
 	finally:
-		if sqLiteCacheDBWrapper is not None:
-			sqLiteCacheDBWrapper.sqLiteCacheDB.conn.close()
+		if wrapper_cache_db is not None:
+			wrapper_cache_db.disconnect()
 
 
-@celery.task(bind=True)
-def load_document_base_from_bson(self, path, status_callback, error_callback, document_base_to_ui, finished):
+def load_document_base_from_bson(document_id: int, user_id: int):
 	logger.debug("Called function 'load_document_base_from_bson'.")
-	status_callback.emit("Loading document base from BSON...", -1)
-	cache_db = None
+	wrapper_cache_db: Optional[SQLiteCacheDBWrapper] = None
 	try:
-		with open(path, "rb") as file:
-			document_base = DocumentBase.from_bson(file.read())
+		wrapper_cache_db = Cache_DB.Cache_Manager.user(user_id)
+		cache_db = wrapper_cache_db.sqLiteCacheDB
 
-			if not document_base.validate_consistency():
-				logger.error("Document base is inconsistent!")
-				error_callback.emit("Document base is inconsistent!")
-				return
+		document = getDocument(document_id, user_id)
+		if isinstance(document, str):
+			logger.error("document is not a DocumentBase!")
+			return -1
+		document_base = DocumentBase.from_bson(document)
 
-			cache_db = reset_cache_db(cache_db)
-			for attribute in document_base.attributes:
-				cache_db.create_table_by_name(attribute.name)
-			cache_db.create_input_docs_table("input_document", document_base.documents)
+		if not document_base.validate_consistency():
+			logger.error("Document base is inconsistent!")
+			return -1
 
-			document_base_to_ui.emit(document_base)
-			finished.emit("Finished!")
-	except FileNotFoundError:
-		logger.error("File does not exist!")
-		error_callback.emit("File does not exist!")
+		wrapper_cache_db.reset_cache_db()
+
+		for attribute in document_base.attributes:
+			cache_db.create_table_by_name(attribute.name)
+		cache_db.create_input_docs_table("input_document", document_base.documents)
+
+		logger.info(f"Document base loaded from BSON with ID {document_id}.")
+		return document_base
+
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
+		return -1
 	finally:
-		if cache_db is not None:
-			cache_db.conn.close()
+		if wrapper_cache_db is not None:
+			wrapper_cache_db.disconnect()
 
 
-def save_document_base_to_bson(document_base: DocumentBase, _id: int):
+def save_document_base_to_bson(name: str, organisation_id: int, document_base: DocumentBase, user_id: int):
 	logger.debug("Called function 'save_document_base_to_bson'.")
 	try:
-		with open(path, "wb") as file:
-			file.write(document_base.to_bson())
-			document_base_to_ui.emit(document_base)
-			finished.emit("Finished!")
-	except FileNotFoundError:
-		logger.error("Directory does not exist!")
-		error_callback.emit("Directory does not exist!")
+		document_id = addDocument(name, document_base.to_bson(), organisation_id, user_id)
+		if document_id is None:
+			logger.error("Document base could not be saved to BSON!")
+		elif document_id == -1:
+			logger.error("Document base could not be saved to BSON! Document name already exists!")
+			return -1
+		logger.info(f"Document base saved to BSON with ID {document_id}.")
+		return document_id
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.debug(str(e))
 
 
-def save_table_to_csv(path, document_base, status_callback, error_callback, document_base_to_ui, finished):
+def save_table_to_csv(document_base: DocumentBase):
 	logger.debug("Called function 'save_table_to_csv'.")
-	status_callback.emit("Saving table to CSV...", -1)
 	try:
+		buffer = io.StringIO()
+
 		# check that the table is complete
 		for attribute in document_base.attributes:
 			for document in document_base.documents:
 				if attribute.name not in document.attribute_mappings.keys():
 					logger.error("Cannot save a table with unpopulated attributes!")
-					error_callback.emit("Cannot save a table with unpopulated attributes!")
-					return
+					return -1
 
 		# TODO: currently stores the text of the first matching nugget (if there is one)
 		table_dict = document_base.to_table_dict("text")
@@ -145,45 +154,39 @@ def save_table_to_csv(path, document_base, status_callback, error_callback, docu
 			for header in headers:
 				if header == "document-name":
 					row.append(table_dict[header][ix])
-				elif table_dict[header][ix] == []:
+				elif not table_dict[header][ix]:
 					row.append(None)
 				else:
 					row.append(table_dict[header][ix][0])
 			rows.append(row)
-		with open(path, "w", encoding="utf-8", newline="") as file:
-			writer = csv.writer(file, delimiter=",", quotechar='"', quoting=csv.QUOTE_ALL)
+			writer = csv.writer(buffer, delimiter=",", quotechar='"', quoting=csv.QUOTE_ALL)
 			writer.writerow(headers)
 			writer.writerows(rows)
-		document_base_to_ui.emit(document_base)
-		finished.emit("Finished!")
 	except FileNotFoundError:
 		logger.error("Directory does not exist!")
-		error_callback.emit("Directory does not exist!")
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
 
 
-def add_attribute(name, document_base, status_callback, error_callback, document_base_to_ui, finished):
+def add_attribute(name: str, document_base: DocumentBase):
 	logger.debug("Called function 'add_attribute'.")
-	status_callback.emit("Adding attribute...", -1)
 	try:
 		if name in [attribute.name for attribute in document_base.attributes]:
 			logger.error("Attribute name already exists!")
-			error_callback.emit("Attribute name already exists!")
+			return -1
 		elif name == "":
 			logger.error("Attribute name must not be empty!")
-			error_callback.emit("Attribute name must not be empty!")
+			return -1
 		else:
 			document_base.attributes.append(Attribute(name))
-			document_base_to_ui.emit(document_base)
-			finished.emit("Finished!")
+			logger.debug(f"Attribute '{name}' added.")
+			return 0
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
 
 
-def add_attributes(names, document_base, status_callback, error_callback, document_base_to_ui, finished):
+def add_attributes(names: str, document_base: DocumentBase):
 	logger.debug("Called function 'add_attributes'.")
-	status_callback.emit("Adding attributes...", -1)
 	try:
 		already_existing_names = []
 		for name in names:
@@ -194,15 +197,14 @@ def add_attributes(names, document_base, status_callback, error_callback, docume
 				logger.info("Attribute name must not be empty and was thus ignored.")
 			else:
 				document_base.attributes.append(Attribute(name))
-		document_base_to_ui.emit(document_base)
-		finished.emit("Finished!")
+				logger.debug(f"Attribute '{name}' added.")
+		return already_existing_names
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
 
 
-def remove_attribute(name, document_base, status_callback, error_callback, document_base_to_ui, finished):
+def remove_attribute(name: str, document_base: DocumentBase):
 	logger.debug("Called function 'remove_attribute'.")
-	status_callback.emit("Removing attribute...", -1)
 	try:
 		if name in [attribute.name for attribute in document_base.attributes]:
 			for document in document_base.documents:
@@ -213,68 +215,65 @@ def remove_attribute(name, document_base, status_callback, error_callback, docum
 				if attribute.name == name:
 					document_base.attributes.remove(attribute)
 					break
-			document_base_to_ui.emit(document_base)
-			finished.emit("Finished!")
+			return 0
 		else:
 			logger.error("Attribute name does not exist!")
-			error_callback.emit("Attribute name does not exist!")
+			return -1
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
 
 
-def forget_matches_for_attribute(name, document_base, status_callback, error_callback, document_base_to_ui, finished):
+def forget_matches_for_attribute(name: str, document_base: DocumentBase):
 	logger.debug("Called function 'forget_matches_for_attribute'.")
-	status_callback.emit("Forgetting matches...", -1)
 	try:
 		if name in [attribute.name for attribute in document_base.attributes]:
 			for document in document_base.documents:
 				if name in document.attribute_mappings.keys():
 					del document.attribute_mappings[name]
-			document_base_to_ui.emit(document_base)
-			finished.emit("Finished!")
+			return 0
 		else:
 			logger.error("Attribute name does not exist!")
-			error_callback.emit("Attribute name does not exist!")
+			return -1
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
 
 
-def forget_matches(document_base, status_callback, error_callback, document_base_to_ui, finished):
+def forget_matches(name: str, user_id: int, document_base: DocumentBase):
 	logger.debug("Called function 'forget_matches'.")
-	status_callback.emit("Forgetting matches...", -1)
+	wrapper_cache_db: Optional[SQLiteCacheDBWrapper] = None
 	try:
+		wrapper_cache_db = Cache_DB.Cache_Manager.user(user_id)
+		cache_db = wrapper_cache_db.sqLiteCacheDB
+
 		for attribute in document_base.attributes:
-			document_base.delete_table(attribute.name)
-			document_base.create_table_by_name(attribute.name)
+			cache_db.delete_table(attribute.name)
+			cache_db.create_table_by_name(attribute.name)
 		for document in document_base.documents:
 			document.attribute_mappings.clear()
-		document_base_to_ui.emit(document_base)
-		finished.emit("Finished!")
+		logger.debug(f"Matche: {name} forgotten.")
+		return 0
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
+		return -1
+	finally:
+		if wrapper_cache_db is not None:
+			wrapper_cache_db.disconnect()
 
 
-def save_statistics_to_json(path, statistics, status_callback, error_callback, finished):
+def save_statistics_to_json(statistics: Statistics):
 	logger.debug("Called function 'save_statistics_to_json'.")
-	status_callback.emit("Saving statistics to JSON...", -1)
 	try:
-		with open(path, "w", encoding="utf-8") as file:
-			json.dump(statistics.to_serializable(), file, indent=2)
-			finished.emit("Finished!")
-	except FileNotFoundError:
-		logger.error("Directory does not exist!")
-		error_callback.emit("Directory does not exist!")
+		return json.dumps(statistics.to_serializable(), indent=2)
 	except Exception as e:
-		error_callback.emit(str(e))
+		logger.error(str(e))
 
 
-def interactive_table_population(document_base, statistics, status_callback, error_callback,
-								 feedback_request_to_ui, feedback_cond, feedback_mutex,
-								 feedback, finished, document_base_to_ui):
+@celery.task(bind=True)
+def interactive_table_population(self, document_base: DocumentBase, statistics: Statistics):
 	logger.debug("Called function 'interactive_table_population'.")
+	status = TaskStatus(Progress(0, 100), None)
+	self.update_state(state=status.state, meta=status.meta)
 	try:
-		# load default matching phase
-		status_callback.emit("Loading matching phase...", -1)
 		matching_phase = Pipeline(
 			[
 				SplitAttributeNameLabelParaphraser(do_lowercase=True, splitters=[" ", "_"]),
@@ -314,15 +313,17 @@ def interactive_table_population(document_base, statistics, status_callback, err
 
 		# run matching phase
 		def status_callback_fn(message, progress):
-			status_callback.emit(message, progress)
+			status.update(progress, message)
+			self.update_state(state=status.state, meta=status.meta)
 
 		status_callback = StatusCallback(status_callback_fn)
 
 		def interaction_callback_fn(pipeline_element_identifier, feedback_request):
 			feedback_request["identifier"] = pipeline_element_identifier
-			feedback_request_to_ui.emit(feedback_request)
 
-			feedback_mutex.lock()
+			a = RedisCache.Redis_Cache_Manager
+			redis_client = a.user(1).redis_client
+			redis_client.set(f"{userid}:feedback_request", json.dumps(feedback_request))
 			try:
 				feedback_cond.wait(feedback_mutex)
 			finally:

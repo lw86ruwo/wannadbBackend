@@ -77,6 +77,7 @@ def create_organisation():
 	authorization = request.headers.get("Authorization")
 
 	organisation_name = data.get("organisationName")
+	print(organisation_name, authorization)
 
 	organisation_id, error = addOrganisation(organisation_name, authorization)
 	if error:

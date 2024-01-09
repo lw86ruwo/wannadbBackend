@@ -49,6 +49,11 @@ class CacheManager:
 			self._resources[user_id].delete()
 			del self._resources[user_id]
 
+	def disconnect_user(self, user_id: int) -> None:
+		"""Disconnect a user from the CacheManager."""
+		if user_id in self._resources:
+			self._resources[user_id].disconnect()
+
 
 class SQLiteCacheDBWrapper:
 	def __init__(self, user_id: int, db_file="wannadb_cache.db"):
@@ -67,3 +72,11 @@ class SQLiteCacheDBWrapper:
 			self.sqLiteCacheDB.conn.close()
 			self.sqLiteCacheDB = None
 		self.sqLiteCacheDB = SQLiteCacheDB(db_file=self.db_identifier)
+
+	def disconnect(self):
+		if self.sqLiteCacheDB is None:
+			logger.error(f"Cache db {self.db_identifier} already deleted")
+			return False
+		logger.debug(f"Disconnect {self.db_identifier} from cache db")
+		self.sqLiteCacheDB.conn.close()
+		return True
