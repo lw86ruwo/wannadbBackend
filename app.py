@@ -20,6 +20,7 @@ app = Flask(__name__)
 def celery_init_app(_app: Flask) -> Celery:
 	_app.app_context()
 	RedisConnection()
+
 	class FlaskTask(Task):
 
 		def __call__(self, *args: object, **kwargs: object) -> object:
@@ -41,11 +42,13 @@ app.config.from_mapping(
 	broker_url=os.environ.get("CELERY_BROKER_URL"),
 	task_ignore_result=True,
 	PREFERRED_URL_SCHEME='https',
-	PROPAGATE_EXCEPTIONS=True
+	#PROPAGATE_EXCEPTIONS=True
 )
+app.config['DEBUG'] = True
 # Register the Extensions
 CORS(app)
 toolbar = DebugToolbarExtension(app)
+
 
 celery = celery_init_app(app)
 
@@ -79,7 +82,3 @@ def index():
     </html>
     """
 	return render_template_string(html_code)
-
-
-if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=8000, debug=True)

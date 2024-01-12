@@ -157,7 +157,7 @@ class OntoNotesLabelParaphraser(BaseLabelParaphraser):
                 "NORP": "nationality religion political group",
                 "FAC": "building airport highway bridge",
                 "ORG": "organization",
-                "GPE": "country city state",
+                "GPE": "country city __state",
                 "LOC": "location mountain range body of water",
                 "PRODUCT": "product vehicle weapon food",
                 "EVENT": "event hurricane battle war sports",

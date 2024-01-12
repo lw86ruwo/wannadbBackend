@@ -319,7 +319,7 @@ class MainWindow(QMainWindow):
         self.interactive_matching_widget.disable_input()
 
     def to_start_state(self):
-        logger.info("To START state.")
+        logger.info("To START __state.")
         self.application_state = ApplicationState.START
         self.document_base = None
 
@@ -350,7 +350,7 @@ class MainWindow(QMainWindow):
         self.central_widget_layout.update()
 
     def to_create_document_base_state(self):
-        logger.info("To CREATE_DOCUMENT_BASE state.")
+        logger.info("To CREATE_DOCUMENT_BASE __state.")
         self.application_state = ApplicationState.CREATE_DOCUMENT_BASE
         self.document_base = None
 
@@ -381,7 +381,7 @@ class MainWindow(QMainWindow):
         self.central_widget_layout.update()
 
     def to_creating_document_base_state(self):
-        logger.info("To CREATING_DOCUMENT_BASE state.")
+        logger.info("To CREATING_DOCUMENT_BASE __state.")
         self.application_state = ApplicationState.CREATING_DOCUMENT_BASE
 
         self.disable_global_input()
@@ -401,14 +401,14 @@ class MainWindow(QMainWindow):
         self.central_widget_layout.update()
 
     def to_busy_state(self):
-        logger.info("To BUSY state.")
+        logger.info("To BUSY __state.")
         self.application_state = ApplicationState.BUSY
 
         self.disable_global_input()
         # the correct widgets are already visible
 
     def to_view_document_base_state(self):
-        logger.info("To VIEW_DOCUMENT_BASE state.")
+        logger.info("To VIEW_DOCUMENT_BASE __state.")
         self.application_state = ApplicationState.VIEW_DOCUMENT_BASE
 
         self.disable_global_input()
@@ -446,7 +446,7 @@ class MainWindow(QMainWindow):
         self.central_widget_layout.update()
 
     def to_interactive_matching_state(self):
-        logger.info("To INTERACTIVE_MATCHING state.")
+        logger.info("To INTERACTIVE_MATCHING __state.")
         self.application_state = ApplicationState.INTERACTIVE_MATCHING
 
         self.disable_global_input()

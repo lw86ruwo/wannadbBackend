@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 
 import bcrypt
 from psycopg2 import sql
@@ -74,7 +74,7 @@ def checkOrganisationAuthorisation(organisationName: str, userName: str) -> int:
 def _getDocument(documentId: int):
 	select_query = sql.SQL("""SELECT content,content_byte 
 								from documents 
-						   		where id = (%s)""")
+								where id = (%s)""")
 
 	result = execute_query(select_query, (documentId,))
 	try:
@@ -85,27 +85,84 @@ def _getDocument(documentId: int):
 			else:
 				content = result[0][1]
 				return bytes(content)
+		else:
+			return None
 
 	except Exception as e:
 		print("_getDocument failed because: \n", e)
 
 
-def getDocument(documentId: int, _id: int):
-	select_query = sql.SQL("""SELECT content,content_byte 
-									from documents 
-							   		join membership m on documents.organisationid = m.organisationid
-							   		where id = (%s) and m.userid = (%s)
-							   		""")
+def getDocument(document_id: int, user_id: int):
+	select_query = sql.SQL("""SELECT name,content,content_byte 
+							 FROM documents 
+							 JOIN membership m ON documents.organisationid = m.organisationid
+							 WHERE id = (%s) AND m.userid = (%s)
+							 """)
 
-	result = execute_query(select_query, (documentId, _id,))
-	print(result)
+	result = execute_query(select_query, (document_id, user_id,))
 	try:
-		if result[0]:
-			if result[0][0]:
-				content = result[0][0]
-				return str(content)
-			else:
-				content = result[0][1]
-				return bytes(content)
+		if len(result) > 0:
+			for document in result:
+				name = document[0]
+				if document[1]:
+					content = document[1]
+					return str(name), str(content)
+				elif document[2]:
+					content = document[2]
+					return str(name), bytes(content)
+		else:
+			return None
 	except Exception as e:
-		print("getDocument failed because: \n", e)
+		print("getDocument failed because:\n", e)
+
+
+def getDocuments(document_ids: list[int], user_id: int):
+	select_query = sql.SQL(f"""SELECT name,content,content_byte 
+							 FROM documents 
+							 JOIN membership m ON documents.organisationid = m.organisationid
+							 WHERE m.userid = (%s) and documents.id in 
+							 ({",".join(str(_id) for _id in document_ids)})
+							 """)
+	result = execute_query(select_query, (user_id,))
+	try:
+		if len(result) > 0:
+			documents = []
+			for document in result:
+				name = document[0]
+				if document[1]:
+					content = document[1]
+					documents.append((str(name), str(content)))
+				elif document[2]:
+					content = document[2]
+					documents.append((str(name), bytes(content)))
+			return documents
+		else:
+			return None
+	except Exception as e:
+		print("getDocuments failed because:\n", e)
+
+
+def getDocument_ids(organisation_id: int, user_id: int):
+	select_query = sql.SQL("""SELECT name,content,content_byte 
+									from documents 
+									join membership m on documents.organisationid = m.organisationid
+									where m.organisationid = (%s) and m.userid = (%s)
+									""")
+
+	result = execute_query(select_query, (organisation_id, user_id,))
+	print(result)
+	documents = []
+	try:
+		if len(result) > 0:
+			for document in result:
+				if document[1]:
+					name = document[0]
+					content = document[1]
+					documents.append((str(name), str(content)))
+				elif document[2]:
+					name = document[0]
+					content = document[2]
+					documents.append((str(name), bytes(content)))
+		return documents
+	except Exception as e:
+		print("getDocument_ids failed because: \n", e)

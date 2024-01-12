@@ -50,5 +50,5 @@ class Web_API_Thread(threading.Thread):
 	def create_document_base(self, documents: [Document], attributes: [Attribute], statistics: Statistics):
 		if self.function is not None:
 			raise Exception("Function running")
-		self.function = lambda: self.wannadb_web_api.create_document_base(documents, attributes, statistics)
+		self.function = lambda: self.wannadb_web_api.create_document_base_task(documents, attributes, statistics)
 		self.event.set()

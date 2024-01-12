@@ -23,24 +23,23 @@ from wannadb_web.SQLite import Cache_DB
 from wannadb_web.SQLite.Cache_DB import SQLiteCacheDBWrapper
 from wannadb_web.postgres.queries import getDocument
 from wannadb_web.postgres.transactions import addDocument
-from wannadb_web.worker.Signal import Signals
+from wannadb_web.worker.util import TaskObject
 
 logger = logging.getLogger(__name__)
 
 
 class WannaDB_WebAPI:
 
-	def __init__(self, user_id: int, signals: Signals, status_callback: StatusCallback,
-				 interaction_callback: InteractionCallback):
+	def __init__(self, user_id: int, task_object:TaskObject):
 		logger.info("WannaDB_WebAPI initialized")
 		self.user_id = user_id
 		self.sqLiteCacheDBWrapper = SQLiteCacheDBWrapper(user_id, db_file=":memory:")
 		self.redisCache = RedisCache(user_id)
-		self.status_callback = status_callback
-		self.interaction_callback = interaction_callback
-		self.signals = signals
+		self.status_callback = task_object.status_callback
+		self.interaction_callback = task_object.interaction_callback
+		self.signals = task_object.signals
 
-	def create_document_base(self, documents: [Document], attributes: [Attribute], statistics: [Statistics]):
+	def create_document_base(self, documents: list[Document], attributes: list[Attribute], statistics: Statistics):
 		logger.debug("Called slot 'create_document_base'.")
 		self.signals.status.emit("Creating document base...", -1)
 		try:
