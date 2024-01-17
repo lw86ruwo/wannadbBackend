@@ -1,3 +1,5 @@
+# This is only a backup branch! Dont merge this branch into main!
+
 # Start the docker
 
 beim ersten mal
@@ -151,9 +153,9 @@ The core of WannaDB (extraction and matching) was previously developed by us und
 
 This repository is structured as follows:
 
-- `wannadb`, `wannadb_parsql`, and `wannadb_ui` contain the implementation of ASET and the GUI.
-- `scripts` contains helpers, like a stand-alone preprocessing script.
-- `tests` contains pytest tests.
+-   `wannadb`, `wannadb_parsql`, and `wannadb_ui` contain the implementation of ASET and the GUI.
+-   `scripts` contains helpers, like a stand-alone preprocessing script.
+-   `tests` contains pytest tests.
 
 ### Architecture: Core
 
